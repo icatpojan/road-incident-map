@@ -1,5 +1,5 @@
 # Road Incident Map
-
+![Alt Text](public/ss.png)
 Road Incident Map is a modern web application for reporting, mapping, and managing road disturbances/incidents in real time. Built with Laravel and Bootstrap, it provides an interactive map and user-friendly dashboard for both the public and administrators.
 
 ## Features
