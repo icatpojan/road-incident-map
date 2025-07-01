@@ -5,6 +5,7 @@
 @section('styles')
 <!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
 <style>
     #map {
         height: 70vh;
@@ -157,20 +158,30 @@
                         </select>
                     </div>
 
-                    <div class="row">
+                    <div class="row" id="latlng-row">
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="latitude" class="form-label">Latitude</label>
-                                <input type="number" class="form-control" id="latitude" name="latitude" step="any" required>
+                                <input type="number" class="form-control" id="latitude" name="latitude" step="any">
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="longitude" class="form-label">Longitude</label>
-                                <input type="number" class="form-control" id="longitude" name="longitude" step="any" required>
+                                <input type="number" class="form-control" id="longitude" name="longitude" step="any">
                             </div>
                         </div>
                     </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Tipe Penandaan Lokasi</label>
+                        <select class="form-control" id="location_mode" name="location_mode" required>
+                            <option value="marker">Titik (Marker)</option>
+                            <option value="area">Area (Polygon)</option>
+                        </select>
+                    </div>
+
+                    <input type="hidden" id="area" name="area">
 
                     <div class="alert alert-info">
                         <i class="fas fa-info-circle me-2"></i>
@@ -224,95 +235,151 @@
 @section('scripts')
 <!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 <script>
     let map;
     let markers = [];
     let currentMarker;
+    let drawnItems;
+    let drawControl;
+    let currentPolygon;
 
-    // Initialize map
+    function setDrawControl(mode) {
+        if (drawControl) {
+            map.removeControl(drawControl);
+        }
+        if (mode === 'area') {
+            drawControl = new L.Control.Draw({
+                draw: {
+                    polygon: true
+                    , marker: false
+                    , polyline: false
+                    , rectangle: false
+                    , circle: false
+                    , circlemarker: false
+                }
+                , edit: {
+                    featureGroup: drawnItems
+                    , edit: false
+                    , remove: true
+                }
+            });
+            map.addControl(drawControl);
+        } else {
+            // Tidak ada tombol draw
+            drawControl = null;
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
-        // Initialize map centered on Indonesia
         map = L.map('map').setView([-2.5489, 118.0149], 5);
-
-        // Add OpenStreetMap tiles
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
-
-        // Load disturbances
+        drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+        setDrawControl('marker');
         loadDisturbances();
-
-        // Add click event to map
-        map.on('click', function(e) {
-            const lat = e.latlng.lat;
-            const lng = e.latlng.lng;
-
-            // Update form fields
-            document.getElementById('latitude').value = lat.toFixed(6);
-            document.getElementById('longitude').value = lng.toFixed(6);
-
-            // Show marker on map
+        document.getElementById('location_mode').addEventListener('change', function() {
+            setDrawControl(this.value);
             if (currentMarker) {
                 map.removeLayer(currentMarker);
+                currentMarker = null;
             }
-            currentMarker = L.marker([lat, lng], {
-                icon: L.divIcon({
-                    className: 'custom-div-icon'
-                    , html: '<div style="background-color: #007bff; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>'
-                    , iconSize: [20, 20]
-                    , iconAnchor: [10, 10]
-                })
-            }).addTo(map);
+            if (currentPolygon) {
+                map.removeLayer(currentPolygon);
+                currentPolygon = null;
+            }
+            drawnItems.clearLayers();
+            document.getElementById('area').value = '';
+            document.getElementById('latitude').value = '';
+            document.getElementById('longitude').value = '';
+        });
+        map.on(L.Draw.Event.CREATED, function(e) {
+            if (e.layerType === 'polygon') {
+                if (currentPolygon) {
+                    map.removeLayer(currentPolygon);
+                }
+                currentPolygon = e.layer;
+                drawnItems.addLayer(currentPolygon);
+                const latlngs = currentPolygon.getLatLngs()[0].map(pt => pt.lat.toFixed(6) + ',' + pt.lng.toFixed(6));
+                document.getElementById('area').value = latlngs.join(';');
+                if (currentMarker) {
+                    map.removeLayer(currentMarker);
+                    currentMarker = null;
+                }
+                document.getElementById('latitude').value = '';
+                document.getElementById('longitude').value = '';
+            }
+        });
+        map.on('click', function(e) {
+            if (document.getElementById('location_mode').value === 'marker') {
+                const lat = e.latlng.lat;
+                const lng = e.latlng.lng;
+                document.getElementById('latitude').value = lat.toFixed(6);
+                document.getElementById('longitude').value = lng.toFixed(6);
+                if (currentMarker) {
+                    map.removeLayer(currentMarker);
+                }
+                currentMarker = L.marker([lat, lng], {
+                    icon: L.divIcon({
+                        className: 'custom-div-icon'
+                        , html: '<div style="background-color: #007bff; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>'
+                        , iconSize: [20, 20]
+                        , iconAnchor: [10, 10]
+                    })
+                }).addTo(map);
+                if (currentPolygon) {
+                    map.removeLayer(currentPolygon);
+                    currentPolygon = null;
+                }
+                drawnItems.clearLayers();
+                document.getElementById('area').value = '';
+            }
         });
     });
 
-    // Load disturbances from server
     function loadDisturbances() {
         fetch('/disturbances')
             .then(response => response.json())
             .then(data => {
-                // Clear existing markers
                 markers.forEach(marker => map.removeLayer(marker));
                 markers = [];
-
-                // Add markers to map
+                if (window.polygons) {
+                    window.polygons.forEach(p => map.removeLayer(p));
+                }
+                window.polygons = [];
                 data.forEach(disturbance => {
-                    const marker = L.marker([disturbance.latitude, disturbance.longitude], {
-                        icon: L.divIcon({
-                            className: 'custom-div-icon'
-                            , html: `<div style="background-color: ${disturbance.status === 'ongoing' ? '#dc3545' : '#28a745'}; width: 25px; height: 25px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-size: 12px;">
-                            <i class="fas fa-${getIconForType(disturbance.type)}"></i>
-                        </div>`
-                            , iconSize: [25, 25]
-                            , iconAnchor: [12, 12]
-                        })
-                    }).addTo(map);
-
-                    // Add popup
-                    marker.bindPopup(`
-                    <div style="min-width: 200px;">
-                        <h6>${disturbance.title}</h6>
-                        <p class="mb-2">${disturbance.description}</p>
-                        <div class="mb-2">
-                            <span class="badge bg-${disturbance.status === 'ongoing' ? 'danger' : 'success'}">${disturbance.status === 'ongoing' ? 'Berlangsung' : 'Selesai'}</span>
-                            <span class="badge bg-info">${getTypeText(disturbance.type)}</span>
-                        </div>
-                        <small class="text-muted">Dilaporkan oleh: ${disturbance.user.name}</small>
-                        <br>
-                        <small class="text-muted">${new Date(disturbance.created_at).toLocaleDateString('id-ID')}</small>
-                    </div>
-                `);
-
-                    markers.push(marker);
+                    if (disturbance.area) {
+                        const latlngs = disturbance.area.split(';').map(pair => {
+                            const [lat, lng] = pair.split(',');
+                            return [parseFloat(lat), parseFloat(lng)];
+                        });
+                        const polygon = L.polygon(latlngs, {
+                            color: disturbance.status === 'ongoing' ? '#dc3545' : '#28a745'
+                            , fillOpacity: 0.3
+                        });
+                        polygon.addTo(map);
+                        polygon.bindPopup(`<div style="min-width: 200px;"><h6>${disturbance.title}</h6><p class="mb-2">${disturbance.description}</p><div class="mb-2"><span class="badge bg-${disturbance.status === 'ongoing' ? 'danger' : 'success'}">${disturbance.status === 'ongoing' ? 'Berlangsung' : 'Selesai'}</span><span class="badge bg-info">${getTypeText(disturbance.type)}</span></div><small class="text-muted">Dilaporkan oleh: ${disturbance.user.name}</small><br><small class="text-muted">${new Date(disturbance.created_at).toLocaleDateString('id-ID')}</small></div>`);
+                        window.polygons.push(polygon);
+                    } else {
+                        const marker = L.marker([disturbance.latitude, disturbance.longitude], {
+                            icon: L.divIcon({
+                                className: 'custom-div-icon'
+                                , html: `<div style="background-color: ${disturbance.status === 'ongoing' ? '#dc3545' : '#28a745'}; width: 25px; height: 25px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-size: 12px;"><i class="fas fa-${getIconForType(disturbance.type)}"></i></div>`
+                                , iconSize: [25, 25]
+                                , iconAnchor: [12, 12]
+                            })
+                        }).addTo(map);
+                        marker.bindPopup(`<div style="min-width: 200px;"><h6>${disturbance.title}</h6><p class="mb-2">${disturbance.description}</p><div class="mb-2"><span class="badge bg-${disturbance.status === 'ongoing' ? 'danger' : 'success'}">${disturbance.status === 'ongoing' ? 'Berlangsung' : 'Selesai'}</span><span class="badge bg-info">${getTypeText(disturbance.type)}</span></div><small class="text-muted">Dilaporkan oleh: ${disturbance.user.name}</small><br><small class="text-muted">${new Date(disturbance.created_at).toLocaleDateString('id-ID')}</small></div>`);
+                        markers.push(marker);
+                    }
                 });
-
-                // Update list
                 updateDisturbanceList(data);
             })
             .catch(error => console.error('Error loading disturbances:', error));
     }
 
-    // Update disturbance list
     function updateDisturbanceList(disturbances) {
         const list = document.getElementById('disturbanceList');
         list.innerHTML = '';
@@ -350,7 +417,6 @@
         });
     }
 
-    // Get current location
     function getCurrentLocation() {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(function(position) {
@@ -359,11 +425,9 @@
 
                 map.setView([lat, lng], 15);
 
-                // Update form fields
                 document.getElementById('latitude').value = lat.toFixed(6);
                 document.getElementById('longitude').value = lng.toFixed(6);
 
-                // Show marker
                 if (currentMarker) {
                     map.removeLayer(currentMarker);
                 }
@@ -381,7 +445,6 @@
         }
     }
 
-    // Add disturbance form submission
     document.getElementById('addDisturbanceForm').addEventListener('submit', function(e) {
         e.preventDefault();
 
@@ -399,22 +462,17 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Close modal
                     bootstrap.Modal.getInstance(document.getElementById('addDisturbanceModal')).hide();
 
-                    // Reset form
                     document.getElementById('addDisturbanceForm').reset();
 
-                    // Remove current marker
                     if (currentMarker) {
                         map.removeLayer(currentMarker);
                         currentMarker = null;
                     }
 
-                    // Reload disturbances
                     loadDisturbances();
 
-                    // Show success message
                     alert(data.message);
                 } else {
                     alert('Error: ' + data.message);
@@ -426,7 +484,6 @@
             });
     });
 
-    // Edit status
     function editStatus(id, currentStatus) {
         document.getElementById('editDisturbanceId').value = id;
         document.getElementById('status').value = currentStatus;
@@ -434,7 +491,6 @@
         new bootstrap.Modal(document.getElementById('editStatusModal')).show();
     }
 
-    // Edit status form submission
     document.getElementById('editStatusForm').addEventListener('submit', function(e) {
         e.preventDefault();
 
@@ -454,13 +510,10 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Close modal
                     bootstrap.Modal.getInstance(document.getElementById('editStatusModal')).hide();
 
-                    // Reload disturbances
                     loadDisturbances();
 
-                    // Show success message
                     alert(data.message);
                 } else {
                     alert('Error: ' + data.message);
@@ -472,7 +525,6 @@
             });
     });
 
-    // Delete disturbance
     function deleteDisturbance(id) {
         if (confirm('Apakah Anda yakin ingin menghapus gangguan ini?')) {
             fetch(`/disturbances/${id}`, {
@@ -484,10 +536,8 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Reload disturbances
                         loadDisturbances();
 
-                        // Show success message
                         alert(data.message);
                     } else {
                         alert('Error: ' + data.message);
@@ -500,7 +550,6 @@
         }
     }
 
-    // Helper functions
     function getIconForType(type) {
         const icons = {
             'road_construction': 'tools'
@@ -522,6 +571,26 @@
         };
         return types[type] || 'Lainnya';
     }
+
+    function updateLatLngVisibility() {
+        const mode = document.getElementById('location_mode').value;
+        const latlngRow = document.getElementById('latlng-row');
+        const latInput = document.getElementById('latitude');
+        const lngInput = document.getElementById('longitude');
+        if (mode === 'marker') {
+            latlngRow.style.display = '';
+            latInput.required = true;
+            lngInput.required = true;
+        } else {
+            latlngRow.style.display = 'none';
+            latInput.required = false;
+            lngInput.required = false;
+            latInput.value = '';
+            lngInput.value = '';
+        }
+    }
+    document.getElementById('location_mode').addEventListener('change', updateLatLngVisibility);
+    updateLatLngVisibility();
 
 </script>
 @endsection

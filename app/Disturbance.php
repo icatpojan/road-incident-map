@@ -11,6 +11,7 @@ class Disturbance extends Model
         'description',
         'latitude',
         'longitude',
+        'area',
         'status',
         'type',
         'user_id'

@@ -5,8 +5,10 @@ Road Incident Map is a modern web application for reporting, mapping, and managi
 ## Features
 
 - **Interactive Map**: Visualize all reported road incidents on a map using Leaflet and OpenStreetMap.
-- **Incident Reporting**: Users can report new road disturbances (accidents, traffic jams, road construction, floods, etc.) with title, description, type, and precise location (latitude & longitude).
-- **Coordinate Selection**: Select location by clicking on the map or entering coordinates manually.
+- **Incident Reporting**: Users can report new road disturbances (accidents, traffic jams, road construction, floods, etc.) with title, description, type, and location.
+- **Flexible Location Marking**: Choose to mark the incident as a single point (marker) or as an area (polygon) on the map.
+- **Polygon Drawing**: When selecting area mode, users can draw a polygon directly on the map to represent the affected area.
+- **Coordinate Selection**: For marker mode, select location by clicking on the map or entering coordinates manually.
 - **Incident List**: View a list of all reported incidents, filter by status (ongoing/resolved), and see details for each report.
 - **Status Management**: Update the status of incidents (ongoing/resolved). Only the reporter or admin can update or delete a report.
 - **User Authentication**: Register, login, and logout with role-based access (admin/user).
@@ -45,3 +47,8 @@ Road Incident Map is a modern web application for reporting, mapping, and managi
 
 ## License
 This project is open-sourced under the MIT license.
+
+## Technical Notes
+- The `area` field is stored as a string of lat,lng pairs separated by semicolons (e.g. `lat1,lng1;lat2,lng2;...`).
+- The `latitude` and `longitude` fields are now nullable, so incidents can be reported as either a marker, an area, or both.
+- The frontend uses Leaflet and Leaflet.draw for interactive polygon drawing.

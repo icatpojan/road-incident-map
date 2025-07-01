@@ -17,8 +17,9 @@ class CreateDisturbancesTable extends Migration
             $table->id();
             $table->string('title');
             $table->text('description');
-            $table->decimal('latitude', 10, 8);
-            $table->decimal('longitude', 11, 8);
+            $table->decimal('latitude', 10, 8)->nullable();
+            $table->decimal('longitude', 11, 8)->nullable();
+            $table->text('area')->nullable();
             $table->enum('status', ['ongoing', 'resolved'])->default('ongoing');
             $table->enum('type', ['road_construction', 'traffic_jam', 'accident', 'flood', 'other'])->default('other');
             $table->foreignId('user_id')->constrained()->onDelete('cascade');

@@ -24,20 +24,24 @@ class MapController extends Controller
         $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'required|string',
-            'latitude' => 'required|numeric|between:-90,90',
-            'longitude' => 'required|numeric|between:-180,180',
             'type' => 'required|in:road_construction,traffic_jam,accident,flood,other',
+            // Validasi: minimal salah satu marker (lat/lng) atau area harus diisi
         ]);
-
+        if (!$request->filled('area') && (!$request->filled('latitude') || !$request->filled('longitude'))) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Isi marker (lat/lng) atau area!'
+            ], 422);
+        }
         $disturbance = Disturbance::create([
             'title' => $request->title,
             'description' => $request->description,
             'latitude' => $request->latitude,
             'longitude' => $request->longitude,
+            'area' => $request->area,
             'type' => $request->type,
             'user_id' => Auth::id(),
         ]);
-
         return response()->json([
             'success' => true,
             'disturbance' => $disturbance->load('user'),
